@@ -12,7 +12,8 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 # pipで追加パッケージをインストール
-RUN pip install seaborn thop backports.tarfile
+RUN pip install seaborn thop backports.tarfile \
+        clearml clearml-session boto3 
 
 # 作業ディレクトリを /yolov9 に変更
 WORKDIR /yolov9
