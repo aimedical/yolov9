@@ -644,11 +644,6 @@ def run(**kwargs):
     opt = parse_opt(True)
     for k, v in kwargs.items():
         setattr(opt, k, v)
-        
-    # Download dataset
-    if opt.dataset_id and opt.dataset_path:
-        if not os.path.exists(opt.dataset_path):
-            Dataset.get(dataset_id=opt.dataset_id).get_mutable_local_copy(opt.dataset_path, overwrite=True)
 
     main(opt)
     return opt
@@ -656,4 +651,10 @@ def run(**kwargs):
 
 if __name__ == "__main__":
     opt = parse_opt()
+
+    # Download dataset
+    if opt.dataset_id and opt.dataset_path:
+        if not os.path.exists(opt.dataset_path):
+            Dataset.get(dataset_id=opt.dataset_id).get_mutable_local_copy(opt.dataset_path, overwrite=True)
+
     main(opt)
