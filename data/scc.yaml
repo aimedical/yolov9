@@ -1,0 +1,15 @@
+path: /coco  # dataset root dir
+train: train.json  # train images (relative to 'path') 118287 images
+val: val.json  # val images (relative to 'path') 5000 images
+
+# Classes
+names:
+  1: SCC-SCC
+  2: SCC-NON
+  3: BA-NON
+  4: BA-SCC
+  5: IN-NON
+  6: IN-SCC
+  7: EGM-NON
+  8: EGJ-NON
+  9: BG-NON
