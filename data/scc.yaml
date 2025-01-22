@@ -4,12 +4,12 @@ val: val.json  # val images (relative to 'path') 5000 images
 
 # Classes
 names:
-  1: SCC-SCC
-  2: SCC-NON
-  3: BA-NON
-  4: BA-SCC
-  5: IN-NON
-  6: IN-SCC
-  7: EGM-NON
-  8: EGJ-NON
-  9: BG-NON
+  0: SCC-SCC
+  1: SCC-NON
+  2: BA-NON
+  3: BA-SCC
+  4: IN-NON
+  5: IN-SCC
+  6: EGM-NON
+  7: EGJ-NON
+  8: BG-NON
