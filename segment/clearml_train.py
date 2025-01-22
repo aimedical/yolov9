@@ -655,6 +655,7 @@ if __name__ == "__main__":
     # Download dataset
     if opt.dataset_id and opt.dataset_path:
         if not os.path.exists(opt.dataset_path):
-            Dataset.get(dataset_id=opt.dataset_id).get_mutable_local_copy(opt.dataset_path, overwrite=True)
+            dst_download_path = Dataset.get(dataset_id=opt.dataset_id).get_mutable_local_copy(opt.dataset_path, overwrite=True)
+            print(f"Dataset downloaded to : {dst_download_path}")
 
     main(opt)
