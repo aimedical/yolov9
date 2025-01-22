@@ -95,5 +95,7 @@ def random_perspective(im,
         targets = targets[i]
         targets[:, 1:5] = new[i]
         new_segments = np.array(new_segments)[i]
+    else:
+        new_segments = np.empty((0, 1000, 2), dtype=np.float64)
 
     return im, targets, new_segments
