@@ -16,7 +16,6 @@ import yaml
 from torch.optim import lr_scheduler
 from tqdm import tqdm
 
-from clearml import Dataset, Task, InputModel
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[0]  # YOLO root directory
