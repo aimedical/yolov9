@@ -6,4 +6,3 @@ val: val.txt  # val images (relative to 'path') 5000 images
 names:
   0: SCC
   1: NO_SCC
-  2: BG-NON
