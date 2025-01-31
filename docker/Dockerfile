@@ -13,7 +13,9 @@ RUN apt-get update && \
 
 # pipで追加パッケージをインストール
 RUN pip install seaborn thop backports.tarfile \
-        clearml clearml-session boto3 
+        clearml clearml-session boto3 && \
+    pip uninstall -y pillow && \
+    pip3 install pillow
 
 # 作業ディレクトリを /yolov9 に変更
 WORKDIR /yolov9
