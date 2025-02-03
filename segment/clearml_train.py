@@ -374,7 +374,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             if fi > best_fitness:
                 best_fitness = fi
             log_vals = list(mloss) + list(results) + lr
-            # callbacks.run('on_fit_epoch_end', log_vals, epoch, best_fitness, fi)
+            callbacks.run('on_fit_epoch_end', log_vals, epoch, best_fitness, fi)
             # Log val metrics and media
             metrics_dict = dict(zip(KEYS, log_vals))
             # logger.log_metrics(metrics_dict, epoch)
@@ -441,7 +441,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                         metrics_dict = dict(zip(KEYS, list(mloss) + list(results) + lr))
                         # logger.log_metrics(metrics_dict, epoch)
 
-        # callbacks.run('on_train_end', last, best, epoch, results)
+        callbacks.run('on_train_end', last, best, epoch, results)
         # on train end callback using genericLogger
         # logger.log_metrics(dict(zip(KEYS[4:16], results)), epochs)
         # if not opt.evolve:
