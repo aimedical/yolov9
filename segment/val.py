@@ -215,10 +215,10 @@ def run(
     metrics = Metrics()
     loss = torch.zeros(4, device=device)
     jdict, stats = [], []
-    # callbacks.run('on_val_start')
+    callbacks.run('on_val_start')
     pbar = tqdm(dataloader, desc=s, bar_format=TQDM_BAR_FORMAT)  # progress bar
     for batch_i, (im, targets, paths, shapes, masks) in enumerate(pbar):
-        # callbacks.run('on_val_batch_start')
+        callbacks.run('on_val_batch_start')
         with dt[0]:
             if cuda:
                 im = im.to(device, non_blocking=True)
@@ -308,7 +308,7 @@ def run(
                 pred_masks = scale_image(im[si].shape[1:],
                                          pred_masks.permute(1, 2, 0).contiguous().cpu().numpy(), shape, shapes[si][1])
                 save_one_json(predn, jdict, path, class_map, pred_masks)  # append to COCO-JSON dictionary
-            # callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
+            callbacks.run('on_val_image_end', pred, predn, path, names, im[si])
 
         # Plot images
         if plots and batch_i < 3:
@@ -318,7 +318,7 @@ def run(
             plot_images_and_masks(im, output_to_target(preds, max_det=15), plot_masks, paths,
                                   save_dir / f'val_batch{batch_i}_pred.jpg', names)  # pred
 
-        # callbacks.run('on_val_batch_end')
+        callbacks.run('on_val_batch_end', batch_i, im, targets, paths, shapes, preds)
 
     # Compute metrics
     stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
@@ -347,7 +347,7 @@ def run(
     # Plots
     if plots:
         confusion_matrix.plot(save_dir=save_dir, names=list(names.values()))
-    # callbacks.run('on_val_end')
+    callbacks.run('on_val_end_img')
 
     mp_bbox, mr_bbox, map50_bbox, map_bbox, mp_mask, mr_mask, map50_mask, map_mask = metrics.mean_results()
 

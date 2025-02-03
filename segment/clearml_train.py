@@ -34,8 +34,8 @@ from utils.downloads import attempt_download, is_url
 from utils.general import (LOGGER, TQDM_BAR_FORMAT, check_amp, check_dataset, check_file, check_git_info,
                            check_git_status, check_img_size, check_requirements, check_suffix, check_yaml, colorstr,
                            get_latest_run, increment_path, init_seeds, intersect_dicts, labels_to_class_weights,
-                           labels_to_image_weights, one_cycle, print_args, print_mutation, strip_optimizer, yaml_save)
-from utils.loggers import GenericLogger
+                           labels_to_image_weights, one_cycle, print_args, print_mutation, strip_optimizer, yaml_save, methods)
+from utils.loggers import Loggers
 from utils.plots import plot_evolve, plot_labels
 from utils.segment.dataloaders import create_dataloader
 from utils.segment.loss_tal import ComputeLoss
@@ -54,7 +54,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     save_dir, epochs, batch_size, weights, single_cls, evolve, data, cfg, resume, noval, nosave, workers, freeze, mask_ratio = \
         Path(opt.save_dir), opt.epochs, opt.batch_size, opt.weights, opt.single_cls, opt.evolve, opt.data, opt.cfg, \
         opt.resume, opt.noval, opt.nosave, opt.workers, opt.freeze, opt.mask_ratio
-    # callbacks.run('on_pretrain_routine_start')
+    callbacks.run('on_pretrain_routine_start')
 
     # Directories
     w = save_dir / 'weights'  # weights dir
@@ -76,7 +76,16 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # Loggers
     data_dict = None
     if RANK in {-1, 0}:
-        logger = GenericLogger(opt=opt, console_logger=LOGGER)
+        loggers = Loggers(save_dir, weights, opt, hyp, LOGGER)  # loggers instance
+
+        # Register actions
+        for k in methods(loggers):
+            callbacks.register_action(k, callback=getattr(loggers, k))
+
+        # Process custom dataset artifact link
+        data_dict = loggers.remote_dataset
+        if resume:  # If resuming runs from remote artifact
+            weights, epochs, hyp, batch_size = opt.weights, opt.epochs, opt.hyp, opt.batch_size
 
     # Config
     plots = not evolve and not opt.noplots  # create plots
@@ -124,8 +133,8 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     # Batch size
     if RANK == -1 and batch_size == -1:  # single-GPU only, estimate best batch size
         batch_size = check_train_batch_size(model, imgsz, amp)
-        logger.update_params({"batch_size": batch_size})
-        # loggers.on_params_update({"batch_size": batch_size})
+        # logger.update_params({"batch_size": batch_size})
+        loggers.on_params_update({"batch_size": batch_size})
 
     # Optimizer
     nbs = 64  # nominal batch size
@@ -209,7 +218,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
             if plots:
                 plot_labels(labels, names, save_dir)
-        # callbacks.run('on_pretrain_routine_end', labels, names)
+        callbacks.run('on_pretrain_routine_end', labels, names)
 
     # DDP mode
     if cuda and RANK != -1:
@@ -238,13 +247,13 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
     scaler = torch.cuda.amp.GradScaler(enabled=amp)
     stopper, stop = EarlyStopping(patience=opt.patience), False
     compute_loss = ComputeLoss(model, overlap=overlap)  # init loss class
-    # callbacks.run('on_train_start')
+    callbacks.run('on_train_start')
     LOGGER.info(f'Image sizes {imgsz} train, {imgsz} val\n'
                 f'Using {train_loader.num_workers * WORLD_SIZE} dataloader workers\n'
                 f"Logging results to {colorstr('bold', save_dir)}\n"
                 f'Starting training for {epochs} epochs...')
     for epoch in range(start_epoch, epochs):  # epoch ------------------------------------------------------------------
-        # callbacks.run('on_train_epoch_start')
+        callbacks.run('on_train_epoch_start')
         model.train()
 
         # Update image weights (optional, single-GPU only)
@@ -270,7 +279,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             pbar = tqdm(pbar, total=nb, bar_format=TQDM_BAR_FORMAT)  # progress bar
         optimizer.zero_grad()
         for i, (imgs, targets, paths, _, masks) in pbar:  # batch ------------------------------------------------------
-            # callbacks.run('on_train_batch_start')
+            callbacks.run('on_train_batch_start')
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
@@ -322,17 +331,17 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                 mem = f'{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G'  # (GB)
                 pbar.set_description(('%11s' * 2 + '%11.4g' * 6) %
                                      (f'{epoch}/{epochs - 1}', mem, *mloss, targets.shape[0], imgs.shape[-1]))
-                # callbacks.run('on_train_batch_end', model, ni, imgs, targets, paths)
-                # if callbacks.stop_training:
-                #    return
+                callbacks.run('on_train_batch_end', model, ni, imgs, targets, paths, list(mloss))
+                if callbacks.stop_training:
+                   return
 
                 # Mosaic plots
                 if plots:
                     if ni < 3:
                         plot_images_and_masks(imgs, targets, masks, paths, save_dir / f"train_batch{ni}.jpg")
-                    if ni == 10:
-                        files = sorted(save_dir.glob('train*.jpg'))
-                        logger.log_images(files, "Mosaics", epoch)
+                    # if ni == 10:
+                    #     files = sorted(save_dir.glob('train*.jpg'))
+                    #     logger.log_images(files, "Mosaics", epoch)
             # end batch ------------------------------------------------------------------------------------------------
 
         # Scheduler
@@ -341,7 +350,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
 
         if RANK in {-1, 0}:
             # mAP
-            # callbacks.run('on_train_epoch_end', epoch=epoch)
+            callbacks.run('on_train_epoch_end', epoch=epoch)
             ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not noval or final_epoch:  # Calculate mAP
@@ -368,7 +377,7 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
             # callbacks.run('on_fit_epoch_end', log_vals, epoch, best_fitness, fi)
             # Log val metrics and media
             metrics_dict = dict(zip(KEYS, log_vals))
-            logger.log_metrics(metrics_dict, epoch)
+            # logger.log_metrics(metrics_dict, epoch)
 
             # Save model
             if (not nosave) or (final_epoch and not evolve):  # if save
@@ -389,9 +398,9 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                     torch.save(ckpt, best)
                 if opt.save_period > 0 and epoch % opt.save_period == 0:
                     torch.save(ckpt, w / f'epoch{epoch}.pt')
-                    logger.log_model(w / f'epoch{epoch}.pt')
+                    # logger.log_model(w / f'epoch{epoch}.pt')
                 del ckpt
-                # callbacks.run('on_model_save', last, epoch, final_epoch, best_fitness, fi)
+                callbacks.run('on_model_save', last, epoch, final_epoch, best_fitness, fi)
 
         # EarlyStopping
         if RANK != -1:  # if DDP training
@@ -428,22 +437,22 @@ def train(hyp, opt, device, callbacks):  # hyp is path/to/hyp.yaml or hyp dictio
                         mask_downsample_ratio=mask_ratio,
                         overlap=overlap)  # val best model with plots
                     if is_coco:
-                        # callbacks.run('on_fit_epoch_end', list(mloss) + list(results) + lr, epoch, best_fitness, fi)
+                        callbacks.run('on_fit_epoch_end', list(mloss) + list(results) + lr, epoch, best_fitness, fi)
                         metrics_dict = dict(zip(KEYS, list(mloss) + list(results) + lr))
-                        logger.log_metrics(metrics_dict, epoch)
+                        # logger.log_metrics(metrics_dict, epoch)
 
         # callbacks.run('on_train_end', last, best, epoch, results)
         # on train end callback using genericLogger
-        logger.log_metrics(dict(zip(KEYS[4:16], results)), epochs)
-        if not opt.evolve:
-            logger.log_model(best, epoch)
-        if plots:
-            plot_results_with_masks(file=save_dir / 'results.csv')  # save results.png
-            files = ['results.png', 'confusion_matrix.png', *(f'{x}_curve.png' for x in ('F1', 'PR', 'P', 'R'))]
-            files = [(save_dir / f) for f in files if (save_dir / f).exists()]  # filter
-            LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}")
-            logger.log_images(files, "Results", epoch + 1)
-            logger.log_images(sorted(save_dir.glob('val*.jpg')), "Validation", epoch + 1)
+        # logger.log_metrics(dict(zip(KEYS[4:16], results)), epochs)
+        # if not opt.evolve:
+            # logger.log_model(best, epoch)
+        # if plots:
+        #     plot_results_with_masks(file=save_dir / 'results.csv')  # save results.png
+        #     files = ['results.png', 'confusion_matrix.png', *(f'{x}_curve.png' for x in ('F1', 'PR', 'P', 'R'))]
+        #     files = [(save_dir / f) for f in files if (save_dir / f).exists()]  # filter
+        #     LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}")
+            # logger.log_images(files, "Results", epoch + 1)
+            # logger.log_images(sorted(save_dir.glob('val*.jpg')), "Validation", epoch + 1)
     torch.cuda.empty_cache()
     return results
 
@@ -485,6 +494,7 @@ def parse_opt(known=False):
     parser.add_argument('--seed', type=int, default=0, help='Global training seed')
     parser.add_argument('--local_rank', type=int, default=-1, help='Automatic DDP Multi-GPU argument, do not modify')
     parser.add_argument('--close-mosaic', type=int, default=0, help='Experimental')
+    parser.add_argument('--bbox_interval', type=int, default=-1, help='Set bounding-box image logging interval')
 
     # Instance Segmentation Args
     parser.add_argument('--mask-ratio', type=int, default=4, help='Downsample the truth masks to saving memory')
