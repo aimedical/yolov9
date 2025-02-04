@@ -298,7 +298,7 @@ def run(
             stats.append((correct_masks, correct_bboxes, pred[:, 4], pred[:, 5], labels[:, 0]))  # (conf, pcls, tcls)
 
             pred_masks = torch.as_tensor(pred_masks, dtype=torch.uint8)
-            if plots and batch_i < 3:
+            if plots and batch_i < 10:
                 plot_masks.append(pred_masks[:15].cpu())  # filter top 15 to plot
 
             # Save/log
