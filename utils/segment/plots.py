@@ -82,14 +82,11 @@ def plot_images_and_masks(images, targets, masks, paths=None, fname='images.jpg'
 
             # Plot masks
             if len(masks):
-                if masks.max() > 1.0:  # mean that masks are overlap
-                    image_masks = masks[[i]]  # (1, 640, 640)
-                    nl = len(ti)
-                    index = np.arange(nl).reshape(nl, 1, 1) + 1
-                    image_masks = np.repeat(image_masks, nl, axis=0)
-                    image_masks = np.where(image_masks == index, 1.0, 0.0)
-                else:
-                    image_masks = masks[idx]
+                image_masks = masks[[i]]  # (1, 640, 640)
+                nl = len(ti)
+                index = np.arange(nl).reshape(nl, 1, 1) + 1
+                image_masks = np.repeat(image_masks, nl, axis=0)
+                image_masks = np.where(image_masks == index, 1.0, 0.0)
 
                 im = np.asarray(annotator.im).copy()
                 for j, box in enumerate(boxes.T.tolist()):
