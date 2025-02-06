@@ -167,7 +167,7 @@ class ComputeLoss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, p, targets, masks, img=None, epoch=0):
+    def __call__(self, p, targets, masks, img=None, epoch=0, box_weight=7.5, mask_weight=2.5):
         loss = torch.zeros(4, device=self.device)  # box, cls, dfl
         feats, pred_masks, proto = p if len(p) == 3 else p[1]
         batch_size, _, mask_h, mask_w = proto.shape
@@ -236,8 +236,8 @@ class ComputeLoss:
                     loss[1] += self.single_mask_loss(gt_mask, pred_masks[i][fg_mask[i]], proto[i], mxyxy,
                                                      marea)  # seg loss
 
-        loss[0] *= 7.5  # box gain
-        loss[1] *= 2.5 / batch_size
+        loss[0] *= box_weight  # box gain
+        loss[1] *= mask_weight / batch_size
         loss[2] *= 0.5  # cls gain
         loss[3] *= 1.5  # dfl gain
 
