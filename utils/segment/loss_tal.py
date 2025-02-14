@@ -108,7 +108,7 @@ class BboxLoss(nn.Module):
 
 class ComputeLoss:
     # Compute losses
-    def __init__(self, model, use_dfl=True, overlap=True):
+    def __init__(self, model, use_dfl=True, overlap=True, box_weight=7.5, mask_weight=2.5):
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
 
@@ -144,6 +144,10 @@ class ComputeLoss:
         self.proj = torch.arange(m.reg_max).float().to(device)  # / 120.0
         self.use_dfl = use_dfl
 
+        self.box_weight = box_weight
+        self.mask_weight = mask_weight
+        print(f'box_weight: {self.box_weight}, mask_weight: {self.mask_weight}')
+
     def preprocess(self, targets, batch_size, scale_tensor):
         if targets.shape[0] == 0:
             out = torch.zeros(batch_size, 0, 5, device=self.device)
@@ -167,7 +171,7 @@ class ComputeLoss:
             # pred_dist = (pred_dist.view(b, a, c // 4, 4).softmax(2) * self.proj.type(pred_dist.dtype).view(1, 1, -1, 1)).sum(2)
         return dist2bbox(pred_dist, anchor_points, xywh=False)
 
-    def __call__(self, p, targets, masks, img=None, epoch=0, box_weight=7.5, mask_weight=2.5):
+    def __call__(self, p, targets, masks, img=None, epoch=0):
         loss = torch.zeros(4, device=self.device)  # box, cls, dfl
         feats, pred_masks, proto = p if len(p) == 3 else p[1]
         batch_size, _, mask_h, mask_w = proto.shape
@@ -236,8 +240,8 @@ class ComputeLoss:
                     loss[1] += self.single_mask_loss(gt_mask, pred_masks[i][fg_mask[i]], proto[i], mxyxy,
                                                      marea)  # seg loss
 
-        loss[0] *= box_weight  # box gain
-        loss[1] *= mask_weight / batch_size
+        loss[0] *= self.box_weight  # box gain
+        loss[1] *= self.mask_weight / batch_size
         loss[2] *= 0.5  # cls gain
         loss[3] *= 1.5  # dfl gain
 
